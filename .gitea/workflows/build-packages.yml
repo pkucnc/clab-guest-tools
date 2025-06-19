@@ -62,11 +62,6 @@ jobs:
     container: ${{ matrix.os }}
     
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
       - name: Install build dependencies (DEB)
         if: matrix.package_type == 'deb'
         run: |
@@ -89,6 +84,11 @@ jobs:
             curl -fsSL https://rpm.nodesource.com/setup_lts.x | bash -
             dnf install -y nodejs rpm-build rpmdevtools curl git
           fi
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set version from tag or commit
         id: version
