@@ -71,15 +71,23 @@ jobs:
         if: matrix.package_type == 'deb'
         run: |
           apt-get update
+          # Install Node.js LTS version
+          curl -fsSL https://deb.nodesource.com/setup_lts.x | bash -
+          apt-get install -y nodejs
+          # Install build dependencies
           apt-get install -y dpkg-dev build-essential curl git
 
       - name: Install build dependencies (RPM)
         if: matrix.package_type == 'rpm'
         run: |
           if [ "${{ matrix.distro }}" = "el7" ]; then
-            yum install -y rpm-build rpmdevtools curl git
+            # Install Node.js LTS version for CentOS 7
+            curl -fsSL https://rpm.nodesource.com/setup_lts.x | bash -
+            yum install -y nodejs rpm-build rpmdevtools curl git
           else
-            dnf install -y rpm-build rpmdevtools curl git
+            # Install Node.js LTS version for Rocky Linux 8/9
+            curl -fsSL https://rpm.nodesource.com/setup_lts.x | bash -
+            dnf install -y nodejs rpm-build rpmdevtools curl git
           fi
 
       - name: Set version from tag or commit
