@@ -157,7 +157,7 @@ jobs:
           curl -f -u "${REPO_USERNAME}:${REPO_TOKEN}" \
             -X PUT \
             --data-binary @"$RPM_FILE" \
-            "${REGISTRY_URL}/rpm/upload" \
+            "${REGISTRY_URL}/rpm/el$(rpm -E %{rhel})/upload" \
             -H "Content-Type: application/octet-stream"
           
           if [ $? -eq 0 ]; then
