@@ -65,15 +65,8 @@ jobs:
         run: |
           if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
             VERSION=${GITHUB_REF#refs/tags/v}
-          elif [[ "${GITEA_REF}" == refs/tags/v* ]]; then
-            VERSION=${GITEA_REF#refs/tags/v}
           else
-            # Fallback to a default version if git is not available
-            if command -v git >/dev/null 2>&1; then
-              VERSION="1.0.0-$(git rev-parse --short HEAD)"
-            else
-              VERSION="1.0.0-${GITHUB_SHA:0:7}"
-            fi
+            VERSION="1.0.0-${GITHUB_SHA:0:7}"
           fi
           echo "VERSION=${VERSION}" >> $GITHUB_OUTPUT
           echo "Package version: ${VERSION}"
