@@ -1,0 +1,25 @@
+#!/bin/bash
+# Post-installation script for clab-guest-tools
+
+set -e
+
+# Create necessary directories
+mkdir -p /usr/share/clab/shadowdesk
+
+# Set proper permissions
+chmod 755 /usr/bin/clab-notify
+chmod 644 /usr/share/clab/shadowdesk/shadowdesk.env.default
+chmod 644 /usr/lib/systemd/system/shadowdesk@.service
+chmod 644 /usr/lib/systemd/system/shadowgnome@.service
+chmod 644 /usr/lib/systemd/system/shadowxvfb@.service
+chmod 644 /usr/share/clab/motd
+chmod 644 /usr/share/clab/init-notification.json
+
+# Reload systemd daemon to recognize new service files
+systemctl daemon-reload
+
+echo "CLab Guest Tools installed successfully."
+
+#DEBHELPER#
+
+exit 0

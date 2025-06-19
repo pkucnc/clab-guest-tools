@@ -1,0 +1,49 @@
+Name:           clab-guest-tools
+Version:        {{VERSION}}
+Release:        1%{?dist}
+Summary:        CLab CLI tools
+
+License:        {{LICENSE}}
+URL:            {{HOMEPAGE}}
+Source0:        %{name}-%{version}.tar.gz
+BuildArch:      noarch
+
+Requires:       bash, curl, jq
+
+%description
+CLab CLI Guest Tools for PKU CLab cloud machines.
+
+This package includes:
+- clab-notify: Cluster notification display tool
+- Remote Desktop systemd service configurations
+
+%prep
+%setup -q
+
+%build
+# Nothing to build for noarch package
+
+%install
+# This section will be dynamically generated from files.list
+
+%post
+# Reload systemd daemon to recognize new service files
+systemctl daemon-reload
+
+%preun
+# Stop and disable any running shadowdesk services
+for service in shadowdesk shadowgnome shadowxvfb; do
+    # Find all instances of the service
+    systemctl list-units --type=service --state=active "${service}@*.service" --no-legend | while read unit rest; do
+        echo "Stopping $unit"
+        systemctl stop "$unit" || true
+        systemctl disable "$unit" || true
+    done
+done
+
+%files
+# This section will be dynamically generated from files.list
+
+%changelog
+* {{DATE}} {{MAINTAINER}} - {{VERSION}}-1
+- Initial package

@@ -1,0 +1,18 @@
+#!/bin/bash
+# Pre-removal script for clab-guest-tools
+
+set -e
+
+# Stop and disable any running shadowdesk services
+for service in shadowdesk shadowgnome shadowxvfb; do
+    # Find all instances of the service
+    systemctl list-units --type=service --state=active "${service}@*.service" --no-legend | while read unit rest; do
+        echo "Stopping $unit"
+        systemctl stop "$unit" || true
+        systemctl disable "$unit" || true
+    done
+done
+
+#DEBHELPER#
+
+exit 0

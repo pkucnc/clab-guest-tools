@@ -36,6 +36,65 @@ CLAB_COLOR_GREEN='\033[0;32m'
 CLAB_COLOR_BLUE='\033[0;34m'
 CLAB_COLOR_NC='\033[0m' # No Color
 
+# 显示初始通知
+function show_init_notification {
+    local motd_file="/usr/share/clab/motd"
+    local config_file="/usr/share/clab/init-notification.json"
+    
+    # 检查文件是否存在
+    if [[ ! -f "$motd_file" ]] || [[ ! -f "$config_file" ]]; then
+        return 0
+    fi
+    
+    # 读取配置
+    local title=$(jq -r '.title' "$config_file" 2>/dev/null || echo "CLab 初始通知")
+    local max_count=$(jq -r '.max_display_count' "$config_file" 2>/dev/null || echo "10")
+    local severity=$(jq -r '.severity' "$config_file" 2>/dev/null || echo "info")
+    
+    # 检查显示次数
+    local init_key="init-notification"
+    local display_count=$(jq -r ".[\"$init_key\"] // 0" "$CLAB_NOTIFICATIONS_CACHE_DIR/display_counts.json" 2>/dev/null || echo "0")
+    
+    if [[ $display_count -lt $max_count ]]; then
+        # 设置颜色
+        case "$severity" in
+            critical)
+                color=$CLAB_COLOR_RED
+                ;;
+            important)
+                color=$CLAB_COLOR_YELLOW
+                ;;
+            info)
+                color=$CLAB_COLOR_BLUE
+                ;;
+            *)
+                color=$CLAB_COLOR_GREEN
+                ;;
+        esac
+        
+        # 显示初始通知
+        echo -e "\n${color}========== CLab通知 ==========${CLAB_COLOR_NC}"
+        echo -e "${color}标题:${CLAB_COLOR_NC} $title"
+        echo -e "${color}内容:${CLAB_COLOR_NC}"
+        cat "$motd_file"
+        echo -e "${color}============================${CLAB_COLOR_NC}\n"
+        
+        # 更新显示计数
+        display_count=$((display_count + 1))
+        
+        tmp_file=$(mktemp)
+        jq --arg id "$init_key" --arg count "$display_count" '.[$id] = ($count|tonumber)' \
+           "$CLAB_NOTIFICATIONS_CACHE_DIR/display_counts.json" > "$tmp_file" 2>/dev/null
+           
+        if [[ -s "$tmp_file" ]]; then
+            mv "$tmp_file" "$CLAB_NOTIFICATIONS_CACHE_DIR/display_counts.json"
+        else
+            rm "$tmp_file"
+            echo "{\"$init_key\": $display_count}" > "$CLAB_NOTIFICATIONS_CACHE_DIR/display_counts.json"
+        fi
+    fi
+}
+
 # 获取并显示通知
 function show_cluster_notifications {
     local index_file="$CLAB_NOTIFICATIONS_CACHE_DIR/clab-notify.json"
@@ -126,11 +185,7 @@ function show_cluster_notifications {
             fi
         fi
     done
-
-    # 如果有通知，显示提示
-    if [[ ${#notices[@]} -gt 0 ]]; then
-        echo -e "\n${CLAB_COLOR_GREEN}每条通知最多显示${CLAB_MAX_DISPLAY_COUNT}次。${CLAB_COLOR_NC}"
-    fi
 }
 
+show_init_notification
 show_cluster_notifications

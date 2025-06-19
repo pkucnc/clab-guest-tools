@@ -1,0 +1,9 @@
+欢迎使用 CLab 云计算实验平台！
+
+您的虚拟机已成功创建并准备就绪：
+• 使用 clabcli 命令连接网络、设置远程桌面
+• 本通知系统会实时更新最新的平台通知信息，每条通知最多显示五次。删除 /etc/profile.d/clab-notify.sh 可关闭该功能
+• 入门文档位于 https://clab.pku.edu.cn/docs
+• 有任何问题请邮件至 linuxclub@pku.edu.cn, 或添加交流 QQ 群 432191140
+
+此消息最多显示 10 次

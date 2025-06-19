@@ -1,0 +1,30 @@
+# Common file list for both RPM and DEB packages
+# Format: source_path:destination_path:permissions:type
+# Types: file, dir
+# Permissions: 755 for executables, 644 for regular files, 755 for directories
+
+# Main CLI tool
+clabcli:/usr/bin/clabcli:755:file
+
+# Notification script
+notify/clab-notify.sh:/usr/bin/clab-notify:755:file
+
+# Profile.d file for automatic notification loading
+packaging/profile.d/clab-notify.sh:/etc/profile.d/clab-notify.sh:644:file
+packaging/profile.d/clab-notify.fish:/usr/share/clab/profile.d/clab-notify.fish:644:file
+
+# Shadowdesk configuration
+shadowdesk/shadowdesk.env.default:/usr/share/clab/shadowdesk/shadowdesk.env.default:644:file
+
+# Systemd service files
+shadowdesk/shadowdesk@.service:/usr/lib/systemd/system/shadowdesk@.service:644:file
+shadowdesk/shadowgnome@.service:/usr/lib/systemd/system/shadowgnome@.service:644:file
+shadowdesk/shadowxvfb@.service:/usr/lib/systemd/system/shadowxvfb@.service:644:file
+
+# Initial notification files
+notify/motd:/usr/share/clab/motd:644:file
+notify/init-notification.json:/usr/share/clab/init-notification.json:644:file
+
+# Directories (will be created automatically but listed for completeness)
+:/usr/share/clab:755:dir
+:/usr/share/clab/shadowdesk:755:dir
