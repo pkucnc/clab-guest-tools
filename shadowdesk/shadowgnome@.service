@@ -1,0 +1,14 @@
+[Unit]
+Description=Run gnome session for display %I
+After=shadowxvfb@%i.service
+
+[Service]
+Type=simple
+User=almalinux
+Group=almalinux
+Environment="DISPLAY=:%I"
+Environment="XDG_SESSION_TYPE=x11"
+ExecStart=/etc/X11/xinit/Xsession "gnome-session"
+
+[Install]
+WantedBy=default.target

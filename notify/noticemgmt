@@ -1,0 +1,107 @@
+#!/bin/bash
+
+NOTICE_DIR="/var/www/html/cluster_notifications"
+INDEX_FILE="$NOTICE_DIR/clab-notify.json"
+
+function usage {
+    echo "用法: $0 [add|remove|list]"
+    echo "  add <title> <content> <severity> <expiry_days>   - 添加新通知"
+    echo "  remove <notice_id>                              - 删除通知"
+    echo "  list                                           - 列出所有通知"
+    exit 1
+}
+
+function list_notices {
+    echo "当前通知列表:"
+    echo "-----------------------------------"
+    for notice in "$NOTICE_DIR"/*.json; do
+        if [[ "$notice" != "$INDEX_FILE" ]]; then
+            id=$(basename "$notice" .json)
+            title=$(jq -r '.title' "$notice")
+            expiry=$(jq -r '.expiry_date' "$notice")
+            severity=$(jq -r '.severity' "$notice")
+            echo "ID: $id | 标题: $title | 级别: $severity | 过期日期: $expiry"
+        fi
+    done
+}
+
+function add_notice {
+    if [[ $# -ne 4 ]]; then
+        usage
+    fi
+    
+    title="$1"
+    content="$2"
+    severity="$3"
+    expiry_days="$4"
+    
+    # 生成唯一ID
+    notice_id="notice_$(date +%Y%m%d%H%M%S)"
+    
+    # 计算过期日期
+    expiry_date=$(date -d "+$expiry_days days" +%Y-%m-%d)
+    
+    # 创建通知JSON
+    cat > "$NOTICE_DIR/$notice_id.json" << EOF2
+{
+  "id": "$notice_id",
+  "title": "$title",
+  "content": "$content",
+  "severity": "$severity",
+  "created_date": "$(date +%Y-%m-%d)",
+  "expiry_date": "$expiry_date"
+}
+EOF2
+
+    # 更新索引
+    tmp_file=$(mktemp)
+    jq ".notices += [\"$notice_id\"]" "$INDEX_FILE" > "$tmp_file"
+    mv "$tmp_file" "$INDEX_FILE"
+
+    chown www-data:www-data "$NOTICE_DIR/$notice_id.json"
+    chmod 644 "$NOTICE_DIR/$notice_id.json"
+    chown www-data:www-data "$INDEX_FILE"
+    chmod 644 "$INDEX_FILE"
+    
+    echo "已添加通知 $notice_id"
+}
+
+function remove_notice {
+    if [[ $# -ne 1 ]]; then
+        usage
+    fi
+    
+    notice_id="$1"
+    
+    if [[ ! -f "$NOTICE_DIR/$notice_id.json" ]]; then
+        echo "通知 $notice_id 不存在"
+        exit 1
+    fi
+    
+    # 删除通知文件
+    rm "$NOTICE_DIR/$notice_id.json"
+    
+    # 更新索引
+    tmp_file=$(mktemp)
+    jq ".notices -= [\"$notice_id\"]" "$INDEX_FILE" > "$tmp_file"
+    mv "$tmp_file" "$INDEX_FILE"
+    
+    echo "已删除通知 $notice_id"
+}
+
+case "$1" in
+    add)
+        shift
+        add_notice "$@"
+        ;;
+    remove)
+        shift
+        remove_notice "$@"
+        ;;
+    list)
+        list_notices
+        ;;
+    *)
+        usage
+        ;;
+esac

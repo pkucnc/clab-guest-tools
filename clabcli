@@ -1,0 +1,224 @@
+#!/usr/bin/env python3
+
+import sys
+import requests
+import getpass
+import os
+import random
+import string
+
+def get_user_config_path():
+    """获取shadowdesk配置文件路径"""
+    home_dir = os.path.expanduser("~")
+    config_dir = os.path.join(home_dir, ".config", "shadowdesk")
+    if not os.path.exists(config_dir):
+        os.makedirs(config_dir)
+    return os.path.join(config_dir, "shadowdesk.env")
+    
+def generate_password():
+    """生成随机密码：@Clab1加8位随机数字和字母"""
+    chars = string.ascii_letters + string.digits
+    random_part = ''.join(random.choice(chars) for _ in range(9))
+    return f"@Clab1{random_part}"
+
+def modify_shadowdesk_config(user_id, password):
+    """修改shadowdesk配置文件"""
+    
+    # 保存用户名和密码到用户家目录
+    home_dir = os.path.expanduser("~")
+    with open(os.path.join(home_dir, "rd_password"), 'w') as f:
+        f.write(f"用户名: {user_id}\n密码: {password}\n")
+        
+    config_path = get_user_config_path()
+    
+    # 检查文件是否存在
+    if not os.path.exists(config_path):
+        print(f"警告: 配置文件 {config_path} 不存在")
+        print(f"账号: clabeda_{user_id}")
+        print(f"密码: {password}")
+        return True
+    
+    try:
+        # 读取配置文件
+        with open(config_path, 'r') as f:
+            content = f.read()        
+        
+        # 替换用户名和密码
+        content = content.replace("REPLACE_ME_SHADOWDESK_USER_NAME", f"USER_ID=clabeda_{user_id}")
+        content = content.replace("REPLACE_ME_SHADOWDESK_USER_PASSWORD", f"USER_PASSWORD={password}")
+        
+        # 写回配置文件
+        with open(config_path, 'w') as f:
+            f.write(content)
+            
+        os.system("sudo systemctl enable --now shadowxvfb@98 shadowgnome@98 shadowdesk@98")
+        
+        return True
+    except Exception as e:
+        print(f"修改配置文件时出错: {e}")
+        print(f"账号: clabeda_{user_id}")
+        print(f"密码: {password}")
+        return False
+
+def detect_os() -> tuple[str | None, str | None]:
+    """检测操作系统，返回发行版和版本号"""
+    if os.path.exists('/etc/os-release'):
+        with open('/etc/os-release', 'r') as f:
+            lines = f.readlines()
+        for line in lines:
+            if line.startswith('ID='):
+                distro = line.split('=')[1].strip().strip('"')
+            elif line.startswith('VERSION_ID='):
+                version = line.split('=')[1].strip().strip('"')
+        return distro, version
+    else:
+        return None, None
+    
+
+def install_shadowdesk():
+    """
+    支持的发行版：ubuntu 20.04, 22.04, 24.04; EL 7, 8, 9
+    ubuntu：
+    distribution=$(cat /etc/os-release | grep UBUNTU_CODENAME | cut -d = -f 2)
+    sudo curl https://git.pku.edu.cn/api/packages/pkuhpc/debian/repository.key -o /etc/apt/keyrings/shadowdesk.asc
+    echo "deb [signed-by=/etc/apt/keyrings/shadowdesk.asc] https://git.pku.edu.cn/api/packages/pkuhpc/debian $distribution main" | sudo tee -a /etc/apt/sources.list.d/shadowdesk.list
+    sudo apt install shadowdesk
+
+    el系：
+    dnf config-manager --add-repo https://git.pku.edu.cn/api/packages/pkuhpc/rpm/el$(rpm -E %{rhel})
+    dnf install shadowdesk
+    """
+
+    print("正在安装 shadowdesk...")
+
+    supported_dists = {
+        'ubuntu': ['20.04', '22.04', '24.04'],
+        'el': ['7', '8', '9']
+    }
+
+    distro, version = detect_os()
+    if not distro or not version:
+        print("无法检测操作系统版本，请手动安装 shadowdesk。")
+        return
+    if distro not in supported_dists:
+        print(f"当前操作系统 {distro} 不受支持，请手动安装 shadowdesk。")
+        return 
+    if version not in supported_dists[distro]:
+        print(f"当前操作系统版本 {version} 不受支持，请手动安装 shadowdesk。")
+        return
+    print(f"检测到操作系统: {distro} {version}")
+
+    if distro == 'ubuntu':
+        distribution = os.popen("cat /etc/os-release | grep UBUNTU_CODENAME | cut -d = -f 2").read().strip()
+        os.system(f"sudo curl https://git.pku.edu.cn/api/packages/pkuhpc/debian/repository.key -o /etc/apt/keyrings/shadowdesk.asc")
+        os.system(f"echo 'deb [signed-by=/etc/apt/keyrings/shadowdesk.asc] https://git.pku.edu.cn/api/packages/pkuhpc/debian {distribution} main' | sudo tee -a /etc/apt/sources.list.d/shadowdesk.list")
+        os.system("sudo apt update && sudo apt install shadowdesk")
+    elif distro.startswith('el'):
+        os.system(f"sudo dnf config-manager --add-repo https://git.pku.edu.cn/api/packages/pkuhpc/rpm/el{version}")
+        os.system("sudo dnf install shadowdesk")
+
+    print("shadowdesk 安装完成！")
+
+def main():
+    if len(sys.argv) != 2 or sys.argv[1] not in ['connect', 'c', 'disconnect', 'desktop']:
+        print('''clabcli - connect to its gateway
+
+commands:
+  connect: connect to gateway
+  disconnect: disconnect from gateway
+  desktop: setup remote desktop
+''')
+        return
+        
+    if sys.argv[1] == "disconnect":
+        url = "https://its4.pku.edu.cn/cas/ITSClient"
+        payload = {
+            'cmd': 'close',
+            'land': None
+        }
+        headers = {'Content-type': 'application/x-www-form-urlencoded'}
+
+        result = requests.post(url, params=payload, headers=headers).json()
+        if result.get("succ", False) == "close_OK":
+            print("已断开网络！")
+        else:
+            print("发生错误: ", result["error"])
+    
+    elif sys.argv[1] == "desktop":
+        config_path = get_user_config_path()
+        if not os.path.exists(os.path.expanduser(config_path)):
+            # copy default config file from /usr/share/clab/shadowdesk.env
+            default_config_path = "/usr/share/clab/shadowdesk/shadowdesk.env.default"
+            if not os.path.exists(os.path.expanduser(config_path)):
+                if os.path.exists(default_config_path):
+                    os.system(f"cp {default_config_path} {config_path}")
+                else:
+                    print("默认配置文件不存在，请手动安装 shadowdesk 或联系管理员。")
+                    return
+                
+        with open(config_path, 'r') as f:
+            content = f.read() 
+        
+        # if /opt/shadowdesk/bin/shadowdeskbin  not exists, user selects to install shadowdesk
+        if not os.path.exists("/opt/shadowdesk/bin/shadowdeskbin"):
+            print("未检测到 shadowdesk, 是否安装？(y/n)")
+            choice = input().strip().lower()
+            if choice == 'y':
+                install_shadowdesk()
+            else:
+                print("请手动安装 shadowdesk")
+                return
+        
+        if "REPLACE_ME_SHADOWDESK_USER_NAME" not in content and "REPLACE_ME_SHADOWDESK_USER_PASSWORD" not in content:
+            print("账号密码已设置")
+            # 从配置文件中读取用户名和密码
+            # USER_ID=2019xxxx_hostname
+            # USER_PASSWORD=xxxx
+            user_id_line = [line for line in content.split('\n') if line.startswith("USER_ID=")][0]
+            user_id = user_id_line.split('=')[1]
+            password_line = [line for line in content.split('\n') if line.startswith("USER_PASSWORD=")][0]
+            password = password_line.split('=')[1]
+            print("请前往https://rdv2.lcpu.dev登录使用")
+            print(f"用户名: {user_id}")
+            print(f"密码: {password}")
+            # ensure shadowxvfb@98 shadowgnome@98 shadowdesk@98 services are running
+            os.system("sudo systemctl enable --now shadowxvfb@98 shadowgnome@98 shadowdesk@98")
+            return
+        student_id = input("请输入学号: ")
+        hostname = os.popen("hostname").read().strip()
+        user_id = f"{student_id}_{hostname}"
+        
+        password = generate_password()
+        
+        print(f"\n生成的随机密码: {password}")
+        
+        if modify_shadowdesk_config(student_id, password):
+            print("\n配置已成功修改！")
+            print(f"用户名和密码已保存到 {os.path.expanduser('~')}/rd_password")
+            print("请前往https://rdv2.lcpu.dev登录使用")
+            print(f"用户名: {user_id}")
+            print(f"密码: {password}")
+        else:
+            print("\n配置修改失败，请检查权限或文件路径。")
+            
+    elif sys.argv[1] in ['connect', 'c']:
+        username = input("请输入用户名: ")
+        password = getpass.getpass("请输入密码: ")
+
+        url = "https://its4.pku.edu.cn/cas/ITSClient"
+        payload = {
+            'username': username,
+            'password': password,
+            'iprange': 'free',
+            'cmd': 'open'
+        }
+        headers = {'Content-type': 'application/x-www-form-urlencoded'}
+
+        result = requests.post(url, params=payload, headers=headers).json()
+        if result.get("succ", False) != False:
+            print("成功连接网络！")
+        else:
+            print("连接网关失败: ", result['error'])
+
+if __name__ == "__main__":
+    main()

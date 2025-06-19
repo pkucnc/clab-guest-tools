@@ -1,0 +1,17 @@
+[Unit]
+Description=Run Xvfb for display %I
+After=network.target
+Before=console-getty.service
+
+[Service]
+Type=simple
+User=almalinux
+Group=almalinux
+Environment="DISPLAY=:%I"
+Environment="XVFB_SCREENS=-screen 0 1920x1080x24"
+Environment="XVFB_FBDIR=/"
+ExecStartPre=mkdir -p ${XVFB_FBDIR}
+ExecStart=/usr/bin/Xvfb :%I $XVFB_SCREENS +extension RANDR +extension GLX +extension MIT-SHM -nolisten tcp -noreset -shmem
+
+[Install]
+WantedBy=multi-user.target
