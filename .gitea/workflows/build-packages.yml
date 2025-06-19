@@ -1,0 +1,218 @@
+name: Build and Upload Packages
+
+on:
+  push:
+    branches: [ main, master ]
+  create:
+    tags: [ 'v*' ]
+  workflow_dispatch:
+
+env:
+  REGISTRY_URL: https://git.pku.edu.cn/api/packages/lcpu
+
+jobs:
+  build-and-upload:
+    strategy:
+      matrix:
+        include:
+          # Ubuntu DEB packages
+          - os: ubuntu:20.04
+            package_type: deb
+            distro: ubuntu
+            codename: focal
+            arch: amd64
+          - os: ubuntu:22.04
+            package_type: deb
+            distro: ubuntu
+            codename: jammy
+            arch: amd64
+          - os: ubuntu:24.04
+            package_type: deb
+            distro: ubuntu
+            codename: noble
+            arch: amd64
+          
+          # Debian DEB packages
+          - os: debian:11
+            package_type: deb
+            distro: debian
+            codename: bullseye
+            arch: amd64
+          - os: debian:12
+            package_type: deb
+            distro: debian
+            codename: bookworm
+            arch: amd64
+          
+          # Enterprise Linux RPM packages
+          - os: centos:7
+            package_type: rpm
+            distro: el7
+            arch: noarch
+          - os: rockylinux:8
+            package_type: rpm
+            distro: el8
+            arch: noarch
+          - os: rockylinux:9
+            package_type: rpm
+            distro: el9
+            arch: noarch
+
+    runs-on: ubuntu-latest
+    container: ${{ matrix.os }}
+    
+    steps:
+      - name: Checkout code
+        uses: checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Install build dependencies (DEB)
+        if: matrix.package_type == 'deb'
+        run: |
+          apt-get update
+          apt-get install -y dpkg-dev build-essential curl git
+
+      - name: Install build dependencies (RPM)
+        if: matrix.package_type == 'rpm'
+        run: |
+          if [ "${{ matrix.distro }}" = "el7" ]; then
+            yum install -y rpm-build rpmdevtools curl git
+          else
+            dnf install -y rpm-build rpmdevtools curl git
+          fi
+
+      - name: Set version from tag or commit
+        id: version
+        run: |
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            VERSION=${GITHUB_REF#refs/tags/v}
+          elif [[ "${GITEA_REF}" == refs/tags/v* ]]; then
+            VERSION=${GITEA_REF#refs/tags/v}
+          else
+            VERSION="1.0.0-$(git rev-parse --short HEAD)"
+          fi
+          echo "VERSION=${VERSION}" >> $GITHUB_OUTPUT
+          echo "Package version: ${VERSION}"
+
+      - name: Build DEB package
+        if: matrix.package_type == 'deb'
+        env:
+          VERSION: ${{ steps.version.outputs.VERSION }}
+        run: |
+          chmod +x packaging/build/build-deb.sh
+          ./packaging/build/build-deb.sh
+          
+          # Find the generated DEB file
+          DEB_FILE=$(find build/deb -name "*.deb" -type f | head -1)
+          echo "DEB_FILE=${DEB_FILE}" >> $GITHUB_ENV
+          echo "Built DEB package: ${DEB_FILE}"
+
+      - name: Build RPM package
+        if: matrix.package_type == 'rpm'
+        env:
+          VERSION: ${{ steps.version.outputs.VERSION }}
+        run: |
+          chmod +x packaging/build/build-rpm.sh
+          ./packaging/build/build-rpm.sh
+          
+          # Find the generated RPM file
+          RPM_FILE=$(find build/rpm/RPMS -name "*.rpm" -type f | head -1)
+          echo "RPM_FILE=${RPM_FILE}" >> $GITHUB_ENV
+          echo "Built RPM package: ${RPM_FILE}"
+
+      - name: Upload DEB package to Gitea
+        if: matrix.package_type == 'deb'
+        env:
+          REPO_USERNAME: ${{ secrets.REPO_USERNAME }}
+          REPO_TOKEN: ${{ secrets.REPO_TOKEN }}
+        run: |
+          if [ -z "$REPO_USERNAME" ] || [ -z "$REPO_TOKEN" ]; then
+            echo "Warning: REPO_USERNAME or REPO_TOKEN not set, skipping upload"
+            exit 0
+          fi
+          
+          PACKAGE_NAME=$(basename "$DEB_FILE")
+          
+          echo "Uploading DEB package: $PACKAGE_NAME"
+          echo "Distribution: ${{ matrix.distro }}"
+          echo "Codename: ${{ matrix.codename }}"
+          
+          # Upload DEB package to Gitea Debian repository
+          curl -f -u "${REPO_USERNAME}:${REPO_TOKEN}" \
+            -X PUT \
+            --data-binary @"$DEB_FILE" \
+            "${REGISTRY_URL}/debian/pool/${{ matrix.codename }}/main/upload" \
+            -H "Content-Type: application/octet-stream"
+          
+          if [ $? -eq 0 ]; then
+            echo "Successfully uploaded $PACKAGE_NAME"
+          else
+            echo "Failed to upload $PACKAGE_NAME"
+            exit 1
+          fi
+
+      - name: Upload RPM package to Gitea
+        if: matrix.package_type == 'rpm'
+        env:
+          REPO_USERNAME: ${{ secrets.REPO_USERNAME }}
+          REPO_TOKEN: ${{ secrets.REPO_TOKEN }}
+        run: |
+          if [ -z "$REPO_USERNAME" ] || [ -z "$REPO_TOKEN" ]; then
+            echo "Warning: REPO_USERNAME or REPO_TOKEN not set, skipping upload"
+            exit 0
+          fi
+          
+          PACKAGE_NAME=$(basename "$RPM_FILE")
+          
+          echo "Uploading RPM package: $PACKAGE_NAME"
+          echo "Distribution: ${{ matrix.distro }}"
+          
+          # Upload RPM package to Gitea RPM repository
+          curl -f -u "${REPO_USERNAME}:${REPO_TOKEN}" \
+            -X PUT \
+            --data-binary @"$RPM_FILE" \
+            "${REGISTRY_URL}/rpm/upload" \
+            -H "Content-Type: application/octet-stream"
+          
+          if [ $? -eq 0 ]; then
+            echo "Successfully uploaded $PACKAGE_NAME"
+          else
+            echo "Failed to upload $PACKAGE_NAME"
+            exit 1
+          fi
+
+      - name: Upload build artifacts
+        uses: https://github.com/actions/upload-artifact@v4
+        with:
+          name: packages-${{ matrix.distro }}-${{ matrix.codename || matrix.distro }}
+          path: |
+            build/deb/*.deb
+            build/rpm/RPMS/*.rpm
+            build/rpm/SRPMS/*.rpm
+          if-no-files-found: ignore
+
+  create-release:
+    if: startsWith(github.ref, 'refs/tags/v') || startsWith(gitea.ref, 'refs/tags/v')
+    needs: build-and-upload
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: checkout@v5
+
+      - name: Download all artifacts
+        uses: https://github.com/actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Create Release
+        uses: https://github.com/softprops/action-gh-release@v1
+        with:
+          files: |
+            artifacts/**/*.deb
+            artifacts/**/*.rpm
+          generate_release_notes: true
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITEA_TOKEN || secrets.GITHUB_TOKEN }}
