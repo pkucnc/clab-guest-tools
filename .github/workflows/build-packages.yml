@@ -52,7 +52,7 @@ jobs:
         if: matrix.package_type == 'deb'
         run: |
           apt update
-          apt install -y dpkg-dev build-essential curl git
+          apt install -y dpkg-dev build-essential curl git --allowerasing
       
       - name: Install build dependencies (RPM)
         if: matrix.package_type == 'rpm'
