@@ -15,29 +15,14 @@ jobs:
     strategy:
       matrix:
         include:
-          # Ubuntu DEB packages
-          - os: ubuntu:20.04
-            package_type: deb
-            distro: ubuntu
-            codename: focal
-            arch: amd64
-          - os: ubuntu:22.04
+          # Ubuntu DEB packages - only build on 22.04 for compatibility
+          - os: ubuntu:24.04
             package_type: deb
             distro: ubuntu
             codename: jammy
             arch: amd64
-          - os: ubuntu:24.04
-            package_type: deb
-            distro: ubuntu
-            codename: noble
-            arch: amd64
           
-          # Debian DEB packages
-          - os: debian:11
-            package_type: deb
-            distro: debian
-            codename: bullseye
-            arch: amd64
+          # Debian DEB packages - only build on 12 for compatibility  
           - os: debian:12
             package_type: deb
             distro: debian
@@ -144,21 +129,30 @@ jobs:
           
           echo "Uploading DEB package: $PACKAGE_NAME"
           echo "Distribution: ${{ matrix.distro }}"
-          echo "Codename: ${{ matrix.codename }}"
           
-          # Upload DEB package to Gitea Debian repository
-          curl -f -u "${REPO_USERNAME}:${REPO_TOKEN}" \
-            -X PUT \
-            --data-binary @"$DEB_FILE" \
-            "${REGISTRY_URL}/debian/pool/${{ matrix.codename }}/main/upload" \
-            -H "Content-Type: application/octet-stream"
-          
-          if [ $? -eq 0 ]; then
-            echo "Successfully uploaded $PACKAGE_NAME"
-          else
-            echo "Failed to upload $PACKAGE_NAME"
-            exit 1
+          # Define codenames to upload to based on distribution
+          if [ "${{ matrix.distro }}" = "ubuntu" ]; then
+            CODENAMES="focal jammy noble"  # Ubuntu 20.04, 22.04, 24.04
+          elif [ "${{ matrix.distro }}" = "debian" ]; then
+            CODENAMES="bullseye bookworm"  # Debian 11, 12
           fi
+          
+          # Upload to multiple codenames
+          for CODENAME in $CODENAMES; do
+            echo "Uploading to codename: $CODENAME"
+            curl -f -u "${REPO_USERNAME}:${REPO_TOKEN}" \
+              -X PUT \
+              --data-binary @"$DEB_FILE" \
+              "${REGISTRY_URL}/debian/pool/${CODENAME}/main/upload" \
+              -H "Content-Type: application/octet-stream"
+            
+            if [ $? -eq 0 ]; then
+              echo "Successfully uploaded $PACKAGE_NAME to $CODENAME"
+            else
+              echo "Failed to upload $PACKAGE_NAME to $CODENAME"
+              exit 1
+            fi
+          done
 
       - name: Upload RPM package to Gitea
         if: matrix.package_type == 'rpm'
@@ -199,28 +193,3 @@ jobs:
             build/rpm/RPMS/*.rpm
             build/rpm/SRPMS/*.rpm
           if-no-files-found: ignore
-
-  create-release:
-    if: startsWith(github.ref, 'refs/tags/v') || startsWith(gitea.ref, 'refs/tags/v')
-    needs: build-and-upload
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Download all artifacts
-        uses: https://github.com/actions/download-artifact@v4
-        with:
-          path: artifacts
-
-      - name: Create Release
-        uses: https://github.com/softprops/action-gh-release@v1
-        with:
-          files: |
-            artifacts/**/*.deb
-            artifacts/**/*.rpm
-          generate_release_notes: true
-          draft: false
-          prerelease: false
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITEA_TOKEN || secrets.GITHUB_TOKEN }}
