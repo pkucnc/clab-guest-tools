@@ -52,12 +52,12 @@ jobs:
         if: matrix.package_type == 'deb'
         run: |
           apt update
-          apt install -y dpkg-dev build-essential curl git --allowerasing
+          apt install -y dpkg-dev build-essential curl git 
       
       - name: Install build dependencies (RPM)
         if: matrix.package_type == 'rpm'
         run: |
-          dnf install -y rpm-build rpmdevtools curl git
+          dnf install  --allowerasing -y rpm-build rpmdevtools curl git 
 
       - name: Set version from tag or commit
         id: version
