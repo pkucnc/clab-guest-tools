@@ -66,7 +66,7 @@ jobs:
           if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
             VERSION=${GITHUB_REF#refs/tags/v}
           else
-            VERSION="0.0.${GITHUB_SHA:0:7}"
+            VERSION="0.0.$(date +%Y%m%d)"
           fi
           echo "VERSION=${VERSION}" >> $GITHUB_OUTPUT
           echo "Package version: ${VERSION}"
