@@ -12,8 +12,6 @@ env:
 
 jobs:
   build-and-upload:
-    env:
-      RUNNER_TOOL_CACHE: /toolcache
     strategy:
       matrix:
         include:
