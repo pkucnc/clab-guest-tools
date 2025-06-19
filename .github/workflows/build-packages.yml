@@ -30,10 +30,6 @@ jobs:
             arch: amd64
           
           # Enterprise Linux RPM packages
-          - os: centos:7
-            package_type: rpm
-            distro: el7
-            arch: noarch
           - os: rockylinux:8
             package_type: rpm
             distro: el8
