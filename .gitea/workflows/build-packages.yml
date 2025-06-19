@@ -47,15 +47,42 @@ jobs:
     container: ${{ matrix.os }}
     
     steps:
+      - name: Cache APT packages (DEB)
+        if: matrix.package_type == 'deb'
+        uses: actions/cache@v4
+        with:
+          path: |
+            /var/cache/apt/archives
+            /var/lib/apt/lists
+          key: ${{ runner.os }}-apt-${{ matrix.os }}-${{ hashFiles('**/build-packages.yml') }}
+          restore-keys: |
+            ${{ runner.os }}-apt-${{ matrix.os }}-
+            ${{ runner.os }}-apt-
+
       - name: Install build dependencies (DEB)
         if: matrix.package_type == 'deb'
         run: |
-          apt-get update
+          # Update package lists only if cache miss
+          if [ ! -f /var/lib/apt/lists/lock ]; then
+            apt-get update
+          fi
           # Install Node.js LTS version
           curl -fsSL https://deb.nodesource.com/setup_lts.x | bash -
           apt-get install -y nodejs
           # Install build dependencies
           apt-get install -y dpkg-dev build-essential curl git
+
+      - name: Cache YUM/DNF packages (RPM)
+        if: matrix.package_type == 'rpm'
+        uses: actions/cache@v4
+        with:
+          path: |
+            /var/cache/yum
+            /var/cache/dnf
+          key: ${{ runner.os }}-rpm-${{ matrix.os }}-${{ hashFiles('**/build-packages.yml') }}
+          restore-keys: |
+            ${{ runner.os }}-rpm-${{ matrix.os }}-
+            ${{ runner.os }}-rpm-
 
       - name: Install build dependencies (RPM)
         if: matrix.package_type == 'rpm'
@@ -74,6 +101,30 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: Cache Node.js modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.npm
+            ~/.cache/npm
+            /usr/lib/node_modules
+          key: ${{ runner.os }}-node-${{ matrix.os }}-${{ hashFiles('**/package*.json', '**/yarn.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-node-${{ matrix.os }}-
+            ${{ runner.os }}-node-
+
+      - name: Cache build artifacts
+        uses: actions/cache@v4
+        with:
+          path: |
+            build/
+            packaging/common/generated/
+          key: ${{ runner.os }}-build-${{ matrix.package_type }}-${{ matrix.distro }}-${{ hashFiles('clabcli', 'notify/**', 'shadowdesk/**', 'packaging/**') }}
+          restore-keys: |
+            ${{ runner.os }}-build-${{ matrix.package_type }}-${{ matrix.distro }}-
+            ${{ runner.os }}-build-${{ matrix.package_type }}-
+            ${{ runner.os }}-build-
 
       - name: Set version from tag or commit
         id: version
@@ -183,13 +234,3 @@ jobs:
             echo "Failed to upload $PACKAGE_NAME"
             exit 1
           fi
-
-      - name: Upload build artifacts
-        uses: https://github.com/actions/upload-artifact@v4
-        with:
-          name: packages-${{ matrix.distro }}-${{ matrix.codename || matrix.distro }}
-          path: |
-            build/deb/*.deb
-            build/rpm/RPMS/*.rpm
-            build/rpm/SRPMS/*.rpm
-          if-no-files-found: ignore
