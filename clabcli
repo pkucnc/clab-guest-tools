@@ -179,7 +179,7 @@ def main():
             password_line = [line for line in content.split('\n') if line.startswith("USER_PASSWORD=")][0]
             password = password_line.split('=')[1]
             print("请前往https://rdv2.lcpu.dev登录使用")
-            print(f"用户名: {user_id}")
+            print(f"用户名: clab_{user_id}")
             print(f"密码: {password}")
             # ensure shadowxvfb@98 shadowgnome@98 shadowdesk@98 services are running
             os.system("sudo systemctl enable --now shadowxvfb@98 shadowgnome@98 shadowdesk@98")
@@ -196,7 +196,7 @@ def main():
             print("\n配置已成功修改！")
             print(f"用户名和密码已保存到 {os.path.expanduser('~')}/rd_password")
             print("请前往https://rdv2.lcpu.dev登录使用")
-            print(f"用户名: {user_id}")
+            print(f"用户名: clab_{user_id}")
             print(f"密码: {password}")
         else:
             print("\n配置修改失败，请检查权限或文件路径。")
