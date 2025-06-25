@@ -60,7 +60,7 @@ def modify_shadowdesk_config(user_id, password):
         print(f"密码: {password}")
         return False
 
-def detect_os() -> tuple[str | None, str | None]:
+def detect_os():
     """检测操作系统，返回发行版和版本号"""
     if os.path.exists('/etc/os-release'):
         with open('/etc/os-release', 'r') as f:
