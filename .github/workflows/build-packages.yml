@@ -102,6 +102,7 @@ jobs:
         env:
           REPO_USERNAME: ${{ secrets.REPO_USERNAME }}
           REPO_TOKEN: ${{ secrets.REPO_TOKEN }}
+          VERSION: ${{ steps.version.outputs.VERSION }}
         run: |
           if [ -z "$REPO_USERNAME" ] || [ -z "$REPO_TOKEN" ]; then
             echo "Warning: REPO_USERNAME or REPO_TOKEN not set, skipping upload"
@@ -123,7 +124,13 @@ jobs:
           # Upload to multiple codenames
           for CODENAME in $CODENAMES; do
             echo "Uploading to codename: $CODENAME"
+            # delete it first, ignore error if it doesn't exist
             curl -f -u "${REPO_USERNAME}:${REPO_TOKEN}" \
+              -X DELETE \
+              "${REGISTRY_URL}/debian/pool/${CODENAME}/main/clab-guest-tools/${VERSION}/amd64 " \
+              || true
+            
+            curl -u "${REPO_USERNAME}:${REPO_TOKEN}" \
               -X PUT \
               --data-binary @"$DEB_FILE" \
               "${REGISTRY_URL}/debian/pool/${CODENAME}/main/upload" \
@@ -142,6 +149,7 @@ jobs:
         env:
           REPO_USERNAME: ${{ secrets.REPO_USERNAME }}
           REPO_TOKEN: ${{ secrets.REPO_TOKEN }}
+          VERSION: ${{ steps.version.outputs.VERSION }}
         run: |
           if [ -z "$REPO_USERNAME" ] || [ -z "$REPO_TOKEN" ]; then
             echo "Warning: REPO_USERNAME or REPO_TOKEN not set, skipping upload"
@@ -152,6 +160,11 @@ jobs:
           
           echo "Uploading RPM package: $PACKAGE_NAME"
           echo "Distribution: ${{ matrix.distro }}"
+
+          # DELETE https://gitea.example.com/api/packages/{owner}/rpm/{group}/package/{package_name}/{package_version}/{architecture}
+          curl -f -u "${REPO_USERNAME}:${REPO_TOKEN}" \
+            -X DELETE \
+            "${REGISTRY_URL}/rpm/el$(rpm -E %{rhel})/package/clab-guest-tools/${VERSION}/noarch || true
           
           # Upload RPM package to Gitea RPM repository
           curl -f -u "${REPO_USERNAME}:${REPO_TOKEN}" \

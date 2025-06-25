@@ -7,6 +7,6 @@ if status is-interactive
     # Check if clab-notify command exists
     if command -v clab-notify >/dev/null 2>&1
         # Run the notification script
-        clab-notify
+        source clab-notify
     end
 end
