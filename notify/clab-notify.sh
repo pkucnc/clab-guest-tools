@@ -3,7 +3,7 @@
 CLAB_MASTER_IP="clab-notice.lcpu.dev"
 CLAB_NOTIFICATIONS_URL="http://$CLAB_MASTER_IP/cluster_notifications"
 CLAB_NOTIFICATIONS_CACHE_DIR="$HOME/.cluster_notifications"
-CLAB_MAX_DISPLAY_COUNT=5  # 每个通知最多显示5次
+CLAB_MAX_DISPLAY_COUNT=3  # 每个通知最多显示5次
 CLAB_MAX_AGE_DAYS=14
 CLAB_CACHE_TTL=43200  # 缓存TTL为12h
 
