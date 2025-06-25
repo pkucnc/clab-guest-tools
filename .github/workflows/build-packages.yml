@@ -124,11 +124,6 @@ jobs:
           # Upload to multiple codenames
           for CODENAME in $CODENAMES; do
             echo "Uploading to codename: $CODENAME"
-            # delete it first, ignore error if it doesn't exist
-            curl -f -u "${REPO_USERNAME}:${REPO_TOKEN}" \
-              -X DELETE \
-              "${REGISTRY_URL}/debian/pool/${CODENAME}/main/clab-guest-tools/${VERSION}/amd64" \
-              || true
             
             curl -u "${REPO_USERNAME}:${REPO_TOKEN}" \
               -X PUT \
@@ -160,11 +155,6 @@ jobs:
           
           echo "Uploading RPM package: $PACKAGE_NAME"
           echo "Distribution: ${{ matrix.distro }}"
-
-          curl -f -u "${REPO_USERNAME}:${REPO_TOKEN}" \
-            -X DELETE \
-            "${REGISTRY_URL}/rpm/el$(rpm -E %{rhel})/package/clab-guest-tools/${VERSION}/noarch" || true
-          
           # Upload RPM package to Gitea RPM repository
           curl -f -u "${REPO_USERNAME}:${REPO_TOKEN}" \
             -X PUT \
