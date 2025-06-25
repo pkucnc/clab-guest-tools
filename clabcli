@@ -121,12 +121,12 @@ def install_shadowdesk():
 
 def main():
     if len(sys.argv) != 2 or sys.argv[1] not in ['connect', 'c', 'disconnect', 'desktop']:
-        print('''clabcli - connect to its gateway
+        print('''clabcli - PKU CLAB CLI Tools
 
-commands:
-  connect: connect to gateway
-  disconnect: disconnect from gateway
-  desktop: setup remote desktop
+命令:
+  connect: 连接到北大网关
+  disconnect: 断开网关连接
+  desktop: 配置 shadowdesk 桌面环境
 ''')
         return
         
@@ -202,7 +202,7 @@ commands:
             print("\n配置修改失败，请检查权限或文件路径。")
             
     elif sys.argv[1] in ['connect', 'c']:
-        username = input("请输入用户名: ")
+        username = input("请输入学工号: ")
         password = getpass.getpass("请输入密码: ")
 
         url = "https://its4.pku.edu.cn/cas/ITSClient"
