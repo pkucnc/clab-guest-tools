@@ -34,7 +34,7 @@ def modify_shadowdesk_config(user_id, password):
     # 检查文件是否存在
     if not os.path.exists(config_path):
         print(f"警告: 配置文件 {config_path} 不存在")
-        print(f"账号: clabeda_{user_id}")
+        print(f"账号: clab_{user_id}")
         print(f"密码: {password}")
         return True
     
@@ -44,7 +44,7 @@ def modify_shadowdesk_config(user_id, password):
             content = f.read()        
         
         # 替换用户名和密码
-        content = content.replace("REPLACE_ME_SHADOWDESK_USER_NAME", f"USER_ID=clabeda_{user_id}")
+        content = content.replace("REPLACE_ME_SHADOWDESK_USER_NAME", f"USER_ID=clab_{user_id}")
         content = content.replace("REPLACE_ME_SHADOWDESK_USER_PASSWORD", f"USER_PASSWORD={password}")
         
         # 写回配置文件
@@ -56,7 +56,7 @@ def modify_shadowdesk_config(user_id, password):
         return True
     except Exception as e:
         print(f"修改配置文件时出错: {e}")
-        print(f"账号: clabeda_{user_id}")
+        print(f"账号: clab_{user_id}")
         print(f"密码: {password}")
         return False
 
@@ -185,14 +185,14 @@ def main():
             os.system("sudo systemctl enable --now shadowxvfb@98 shadowgnome@98 shadowdesk@98")
             return
         student_id = input("请输入学号: ")
-        hostname = os.popen("hostname").read().strip()
+        hostname = os.popen("hostname").read().strip().split('.')[0]
         user_id = f"{student_id}_{hostname}"
         
         password = generate_password()
         
         print(f"\n生成的随机密码: {password}")
         
-        if modify_shadowdesk_config(student_id, password):
+        if modify_shadowdesk_config(user_id, password):
             print("\n配置已成功修改！")
             print(f"用户名和密码已保存到 {os.path.expanduser('~')}/rd_password")
             print("请前往https://rdv2.lcpu.dev登录使用")
