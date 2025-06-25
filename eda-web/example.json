@@ -1,0 +1,21 @@
+{
+  "network_segment": "192.168.132.0/22",
+  "nfs_server": "192.168.132.10",
+  "nfs_mounts": [
+    {
+      "source": "/opt/eda/tools",
+      "target": "/opt/eda/tools",
+      "options": "defaults,_netdev,soft,intr"
+    },
+    {
+      "source": "/opt/eda/licenses",
+      "target": "/opt/eda/licenses",
+      "options": "defaults,_netdev,soft,intr"
+    },
+    {
+      "source": "/opt/eda/projects",
+      "target": "/opt/eda/projects",
+      "options": "defaults,_netdev,soft,intr"
+    }
+  ]
+}
