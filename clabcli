@@ -99,13 +99,14 @@ def check_network_segment(required_cidr):
         required_network = ipaddress.ip_network(required_cidr, strict=False)
         
         # 获取本机所有网络接口的 IP 地址
-        result = subprocess.run(['ip', 'addr', 'show'], capture_output=True, text=True)
+        result = subprocess.run(['ip', 'addr', 'show'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         if result.returncode != 0:
             print("无法获取网络接口信息")
             return False
         
-        # 解析 IP 地址
-        lines = result.stdout.split('\n')
+        # 解析 IP 地址 (decode bytes to string for Python 3.6 compatibility)
+        stdout_text = result.stdout.decode('utf-8') if isinstance(result.stdout, bytes) else result.stdout
+        lines = stdout_text.split('\n')
         for line in lines:
             line = line.strip()
             if 'inet ' in line and not line.startswith('inet 127.'):
@@ -187,7 +188,7 @@ def verify_mounts(nfs_mounts):
             continue
         
         # 检查是否为挂载点
-        result = subprocess.run(['mountpoint', '-q', target], capture_output=True)
+        result = subprocess.run(['mountpoint', '-q', target], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         if result.returncode == 0:
             print(f"✓ {target} 挂载成功")
         else:
