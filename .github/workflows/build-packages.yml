@@ -38,6 +38,10 @@ jobs:
             package_type: rpm
             distro: el9
             arch: noarch
+          - os: rockylinux:10
+            package_type: rpm
+            distro: el9
+            arch: noarch
 
     runs-on: ubuntu-latest
     container: ${{ matrix.os }}
@@ -118,7 +122,7 @@ jobs:
           if [ "${{ matrix.distro }}" = "ubuntu" ]; then
             CODENAMES="focal jammy noble"  # Ubuntu 20.04, 22.04, 24.04
           elif [ "${{ matrix.distro }}" = "debian" ]; then
-            CODENAMES="bullseye bookworm"  # Debian 11, 12
+            CODENAMES="bullseye bookworm trixie"  # Debian 11, 12, 13
           fi
           
           # Upload to multiple codenames

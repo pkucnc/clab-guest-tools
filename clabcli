@@ -54,8 +54,6 @@ def modify_shadowdesk_config(user_id, password):
         with open(config_path, 'w') as f:
             f.write(content)
             
-        os.system("sudo systemctl enable --now shadowxvfb@98 shadowgnome@98 shadowdesk@98")
-        
         return True
     except Exception as e:
         print(f"修改配置文件时出错: {e}")
@@ -65,6 +63,9 @@ def modify_shadowdesk_config(user_id, password):
 
 def detect_os():
     """检测操作系统，返回发行版和版本号"""
+    distro = None
+    version = None
+    
     if os.path.exists('/etc/os-release'):
         with open('/etc/os-release', 'r') as f:
             lines = f.readlines()
@@ -210,6 +211,142 @@ def get_uid_1000_user():
         print(f"获取用户信息失败: {e}")
         return None, None
 
+class UnsupportedOSError(Exception):
+    """不支持的操作系统异常"""
+    pass
+
+class OSAdapter:
+    """操作系统适配器基类"""
+    
+    def __init__(self):
+        self.distro, self.version = detect_os()
+    
+    @staticmethod
+    def get_adapter():
+        """根据操作系统返回相应的适配器"""
+        distro, version = detect_os()
+        if distro == 'ubuntu':
+            return UbuntuAdapter()
+        elif distro in ['almalinux', 'rocky', 'rhel', 'centos']:
+            return ELAdapter()
+        else:
+            raise UnsupportedOSError(f"不支持的系统: {distro}")
+    
+    def get_current_user(self):
+        """获取当前用户名"""
+        return getpass.getuser()
+    
+    def get_user_home(self, username=None):
+        """获取用户主目录"""
+        if username is None:
+            username = self.get_current_user()
+        return os.path.expanduser(f"~{username}")
+    
+    def install_desktop_packages(self):
+        """安装桌面环境包"""
+        raise NotImplementedError
+    
+    def get_xsession_path(self):
+        """获取Xsession路径"""
+        raise NotImplementedError
+    
+    def get_desktop_session(self):
+        """获取桌面会话类型"""
+        raise NotImplementedError
+    
+    def disable_display_manager(self):
+        """禁用显示管理器"""
+        raise NotImplementedError
+    
+    def setup_shadowdesk_services(self, username, user_home):
+        """设置shadowdesk系统服务"""
+        service_files = [
+            '/usr/lib/systemd/system/shadowxvfb@.service',
+            '/usr/lib/systemd/system/shadowgnome@.service', 
+            '/usr/lib/systemd/system/shadowdesk@.service'
+        ]
+        
+        templates = {
+            '{{SHADOWDESK_USER}}': username,
+            '{{SHADOWDESK_USER_HOME}}': user_home,
+            '{{XSESSION_PATH}}': self.get_xsession_path(),
+            '{{DESKTOP_SESSION}}': self.get_desktop_session()
+        }
+        
+        for service_file in service_files:
+            if os.path.exists(service_file):
+                try:
+                    with open(service_file, 'r') as f:
+                        content = f.read()
+                    
+                    # 替换模板变量
+                    for placeholder, value in templates.items():
+                        content = content.replace(placeholder, value)
+                    
+                    # 写回文件（需要sudo权限）
+                    subprocess.run(['sudo', 'tee', service_file], 
+                                 input=content, text=True, check=True)
+                    print(f"✓ 已更新服务文件: {service_file}")
+                except Exception as e:
+                    print(f"✗ 更新服务文件失败 {service_file}: {e}")
+                    raise
+            else:
+                print(f"警告: 服务文件不存在: {service_file}")
+
+class UbuntuAdapter(OSAdapter):
+    """Ubuntu适配器"""
+    
+    def install_desktop_packages(self):
+        """安装Ubuntu桌面环境包"""
+        print("正在安装Ubuntu桌面环境包...")
+        result = subprocess.run(['sudo', 'apt', 'install', '-y', 'dbus-x11', 'ubuntu-desktop', 'libopenh264-7'], 
+                               capture_output=True, text=True)
+        if result.returncode != 0:
+            print(f"安装包失败: {result.stderr}")
+            raise RuntimeError("包安装失败")
+        print("✓ Ubuntu桌面环境包安装完成")
+    
+    def get_xsession_path(self):
+        """Ubuntu使用/etc/X11/Xsession"""
+        return '/etc/X11/Xsession'
+    
+    def get_desktop_session(self):
+        """Ubuntu默认使用gnome-session"""
+        return 'gnome-session'
+    
+    def disable_display_manager(self):
+        """禁用Ubuntu的gdm显示管理器"""
+        print("正在禁用gdm显示管理器...")
+        result = subprocess.run(['sudo', 'systemctl', 'disable', '--now', 'gdm'], 
+                               capture_output=True, text=True)
+        if result.returncode != 0:
+            print(f"禁用gdm失败: {result.stderr}")
+        else:
+            print("✓ gdm显示管理器已禁用")
+
+class ELAdapter(OSAdapter):
+    """Enterprise Linux (RHEL/CentOS/AlmaLinux/Rocky) 适配器"""
+    
+    def install_desktop_packages(self):
+        """EL系统通常已安装桌面环境"""
+        print("EL系统，跳过桌面环境包安装")
+    
+    def get_xsession_path(self):
+        """EL系统使用/etc/X11/xinit/Xsession"""
+        return '/etc/X11/xinit/Xsession'
+    
+    def get_desktop_session(self):
+        """EL系统默认使用gnome-session"""
+        return 'gnome-session'
+    
+    def disable_display_manager(self):
+        """EL系统通常使用gdm或lightdm"""
+        print("正在禁用显示管理器...")
+        result = subprocess.run(['sudo', 'systemctl', 'disable', '--now', "gdm"], 
+                                   capture_output=True, text=True)
+        if result.returncode == 0:
+            print(f"✓ GDM 显示管理器已禁用")
+
 def download_and_append_bashrc(eda_name):
     """下载远程 .bashrc 内容并附加到 UID 1000 用户的 .bashrc 中"""
     # 构建 bashrc URL，将 .json 替换为 .bashrc
@@ -341,49 +478,191 @@ def handle_eda_command(eda_name):
     print(f"✓ EDA 环境 {eda_name} 配置成功！")
     print(f"可以使用 clabcli desktop 命令连接到桌面环境")
 
+def setup_desktop_environment():
+    """设置桌面环境的主函数，使用OS适配器框架"""
+    try:
+        # 1. 获取操作系统适配器
+        print("正在检测操作系统...")
+        adapter = OSAdapter.get_adapter()
+        print(f"检测到操作系统: {adapter.distro} {adapter.version}")
+        
+        # 2. 获取当前用户信息
+        current_user = adapter.get_current_user()
+        user_home = adapter.get_user_home()
+        print(f"当前用户: {current_user}")
+        
+        # 3. 检查shadowdesk是否已安装
+        if not os.path.exists("/opt/shadowdesk/bin/shadowdeskbin"):
+            print("未检测到 shadowdesk")
+            choice = input("是否安装 shadowdesk? (y/n): ").strip().lower()
+            if choice == 'y':
+                try:
+                    install_shadowdesk()
+                    # Ubuntu需要额外的桌面环境包
+                    if adapter.distro == 'ubuntu':
+                        adapter.install_desktop_packages()
+                except Exception as e:
+                    print(f"安装 shadowdesk 失败: {e}")
+                    return
+            else:
+                print("请手动安装 shadowdesk")
+                return
+        
+        # 4. 设置用户配置
+        config_path = get_user_config_path()
+        
+        # 复制默认配置文件
+        if not os.path.exists(config_path):
+            default_config_path = "/usr/share/clab/shadowdesk/shadowdesk.env.default"
+            if os.path.exists(default_config_path):
+                subprocess.run(['cp', default_config_path, config_path], check=True)
+                print(f"✓ 已复制默认配置到 {config_path}")
+            else:
+                print(f"警告: 默认配置文件不存在: {default_config_path}")
+        
+        # 5. 读取配置并检查是否已设置
+        with open(config_path, 'r') as f:
+            content = f.read()
+        
+        if "REPLACE_ME_SHADOWDESK_USER_NAME" not in content and "REPLACE_ME_SHADOWDESK_USER_PASSWORD" not in content:
+            print("账号密码已设置")
+            # 提取现有的用户名和密码
+            try:
+                user_id_line = [line for line in content.split('\n') if line.startswith("USER_ID=")][0]
+                user_id = user_id_line.split('=')[1]
+                password_line = [line for line in content.split('\n') if line.startswith("USER_PASSWORD=")][0]
+                password = password_line.split('=')[1]
+                print("请前往 https://rdv2.lcpu.dev 登录使用")
+                print(f"用户名: {user_id}")
+                print(f"密码: {password}")
+            except (IndexError, ValueError):
+                print("配置文件格式异常，请重新配置")
+                return
+        else:
+            # 6. 设置新的用户名和密码
+            student_id = input("请输入学号: ")
+            hostname = subprocess.run(['hostname'], capture_output=True, text=True).stdout.strip().split('.')[0]
+            user_id = f"{student_id}_{hostname}"
+            password = generate_password()
+            
+            print(f"生成的随机密码: {password}")
+            
+            if not modify_shadowdesk_config(user_id, password):
+                print("配置修改失败")
+                return
+                
+            print("配置已成功修改！")
+            print(f"用户名和密码已保存到 {user_home}/rd_password")
+            print("请前往 https://rdv2.lcpu.dev 登录使用")
+            print(f"用户名: {user_id}")
+            print(f"密码: {password}")
+        
+        # 7. 设置系统服务（使用适配器）
+        print("正在设置系统服务...")
+        adapter.setup_shadowdesk_services(current_user, user_home)
+        
+        # 8. 禁用显示管理器（特定于Ubuntu）
+        if adapter.distro == 'ubuntu':
+            adapter.disable_display_manager()
+        
+        # 9. 重载并启动服务
+        print("正在启动shadowdesk服务...")
+        subprocess.run(['sudo', 'systemctl', 'daemon-reload'], check=True)
+        subprocess.run(['sudo', 'systemctl', 'enable', '--now', 
+                       'shadowxvfb@98.service', 'shadowgnome@98.service', 'shadowdesk@98.service'], 
+                      check=True)
+        
+        print("✓ shadowdesk桌面环境配置完成！")
+        
+    except UnsupportedOSError as e:
+        print(f"错误: {e}")
+        print("请手动安装并配置 shadowdesk")
+    except Exception as e:
+        print(f"配置桌面环境时出错: {e}")
+        import traceback
+        traceback.print_exc()
+
 def install_shadowdesk():
-    """
-    支持的发行版：ubuntu 20.04, 22.04, 24.04; EL 7, 8, 9
-    ubuntu：
-    distribution=$(cat /etc/os-release | grep UBUNTU_CODENAME | cut -d = -f 2)
-    sudo curl https://git.pku.edu.cn/api/packages/pkuhpc/debian/repository.key -o /etc/apt/keyrings/shadowdesk.asc
-    echo "deb [signed-by=/etc/apt/keyrings/shadowdesk.asc] https://git.pku.edu.cn/api/packages/pkuhpc/debian $distribution main" | sudo tee -a /etc/apt/sources.list.d/shadowdesk.list
-    sudo apt install shadowdesk
-
-    el系：
-    dnf config-manager --add-repo https://git.pku.edu.cn/api/packages/pkuhpc/rpm/el$(rpm -E %{rhel})
-    dnf install shadowdesk
-    """
-
+    """安装shadowdesk包，支持Ubuntu和EL系统"""
     print("正在安装 shadowdesk...")
 
     supported_dists = {
         'ubuntu': ['20.04', '22.04', '24.04'],
-        'el': ['7', '8', '9']
+        'almalinux': ['8', '9'],
+        'rocky': ['8', '9'],
+        'rhel': ['7', '8', '9'],
+        'centos': ['7', '8', '9']
     }
 
     distro, version = detect_os()
     if not distro or not version:
-        print("无法检测操作系统版本，请手动安装 shadowdesk。")
-        return
-    if distro not in supported_dists:
-        print(f"当前操作系统 {distro} 不受支持，请手动安装 shadowdesk。")
-        return 
-    if version not in supported_dists[distro]:
-        print(f"当前操作系统版本 {version} 不受支持，请手动安装 shadowdesk。")
-        return
+        print("无法检测操作系统版本，请手动安装 shadowdesk")
+        raise RuntimeError("OS detection failed")
+    
     print(f"检测到操作系统: {distro} {version}")
+    
+    # 检查系统支持
+    if distro not in supported_dists:
+        print(f"当前操作系统 {distro} 不受支持")
+        raise UnsupportedOSError(f"不支持的系统: {distro}")
+    
+    if version not in supported_dists[distro]:
+        print(f"当前操作系统版本 {distro} {version} 不受支持")
+        raise UnsupportedOSError(f"不支持的系统版本: {distro} {version}")
 
-    if distro == 'ubuntu':
-        distribution = os.popen("cat /etc/os-release | grep UBUNTU_CODENAME | cut -d = -f 2").read().strip()
-        os.system(f"sudo curl https://git.pku.edu.cn/api/packages/pkuhpc/debian/repository.key -o /etc/apt/keyrings/shadowdesk.asc")
-        os.system(f"echo 'deb [signed-by=/etc/apt/keyrings/shadowdesk.asc] https://git.pku.edu.cn/api/packages/pkuhpc/debian {distribution} main' | sudo tee -a /etc/apt/sources.list.d/shadowdesk.list")
-        os.system("sudo apt update && sudo apt install shadowdesk")
-    elif distro.startswith('el'):
-        os.system(f"sudo dnf config-manager --add-repo https://git.pku.edu.cn/api/packages/pkuhpc/rpm/el{version}")
-        os.system("sudo dnf install shadowdesk")
+    try:
+        if distro == 'ubuntu':
+            _install_shadowdesk_ubuntu()
+        elif distro in ['almalinux', 'rocky', 'rhel', 'centos']:
+            _install_shadowdesk_el(version)
+        else:
+            raise UnsupportedOSError(f"不支持的系统: {distro}")
+        
+        print("✓ shadowdesk 安装完成！")
+        
+    except subprocess.CalledProcessError as e:
+        print(f"安装 shadowdesk 失败: {e}")
+        raise RuntimeError("shadowdesk installation failed")
 
-    print("shadowdesk 安装完成！")
+def _install_shadowdesk_ubuntu():
+    """安装shadowdesk到Ubuntu系统"""
+    print("正在配置Ubuntu软件源...")
+    
+    # 获取Ubuntu发行版代号
+    result = subprocess.run(['grep', 'UBUNTU_CODENAME', '/etc/os-release'], 
+                           capture_output=True, text=True, check=True)
+    codename = result.stdout.split('=')[1].strip()
+    
+    # 确保目录存在
+    subprocess.run(['sudo', 'mkdir', '-p', '/etc/apt/keyrings'], check=True)
+    
+    # 添加GPG密钥
+    subprocess.run(['sudo', 'curl', 
+                   'https://git.pku.edu.cn/api/packages/pkuhpc/debian/repository.key',
+                   '-o', '/etc/apt/keyrings/shadowdesk.asc'], check=True)
+    
+    # 添加软件源
+    repo_line = f"deb [signed-by=/etc/apt/keyrings/shadowdesk.asc] https://git.pku.edu.cn/api/packages/pkuhpc/debian {codename} main"
+    subprocess.run(['sudo', 'tee', '/etc/apt/sources.list.d/shadowdesk.list'], 
+                   input=repo_line, text=True, check=True)
+    
+    # 更新软件包列表并安装
+    print("正在更新软件包列表...")
+    subprocess.run(['sudo', 'apt', 'update'], check=True)
+    
+    print("正在安装shadowdesk...")
+    subprocess.run(['sudo', 'apt', 'install', '-y', 'shadowdesk'], check=True)
+
+def _install_shadowdesk_el(version):
+    """安装shadowdesk到EL系统（RHEL/CentOS/AlmaLinux/Rocky）"""
+    print("正在配置EL软件源...")
+    
+    # 添加软件源
+    repo_url = f"https://git.pku.edu.cn/api/packages/pkuhpc/rpm/el{version}"
+    subprocess.run(['sudo', 'dnf', 'config-manager', '--add-repo', repo_url], check=True)
+    
+    print("正在安装shadowdesk...")
+    subprocess.run(['sudo', 'dnf', 'install', '-y', 'shadowdesk'], check=True)
 
 def main():
     if len(sys.argv) < 2:
@@ -432,65 +711,11 @@ def main():
             print("发生错误: ", result["error"])
     
     elif sys.argv[1] == "desktop":
-        config_path = get_user_config_path()
-        if not os.path.exists(os.path.expanduser(config_path)):
-            # copy default config file from /usr/share/clab/shadowdesk.env
-            default_config_path = "/usr/share/clab/shadowdesk/shadowdesk.env.default"
-            if not os.path.exists(os.path.expanduser(config_path)):
-                if os.path.exists(default_config_path):
-                    os.system(f"cp {default_config_path} {config_path}")
-                else:
-                    print("默认配置文件不存在，请手动安装 shadowdesk 或联系管理员。")
-                    return
-                
-        with open(config_path, 'r') as f:
-            content = f.read() 
-        
-        # if /opt/shadowdesk/bin/shadowdeskbin  not exists, user selects to install shadowdesk
-        if not os.path.exists("/opt/shadowdesk/bin/shadowdeskbin"):
-            print("未检测到 shadowdesk, 是否安装？(y/n)")
-            choice = input().strip().lower()
-            if choice == 'y':
-                install_shadowdesk()
-            else:
-                print("请手动安装 shadowdesk")
-                return
-        
-        if "REPLACE_ME_SHADOWDESK_USER_NAME" not in content and "REPLACE_ME_SHADOWDESK_USER_PASSWORD" not in content:
-            print("账号密码已设置")
-            # 从配置文件中读取用户名和密码
-            # USER_ID=2019xxxx_hostname
-            # USER_PASSWORD=xxxx
-            user_id_line = [line for line in content.split('\n') if line.startswith("USER_ID=")][0]
-            user_id = user_id_line.split('=')[1]
-            password_line = [line for line in content.split('\n') if line.startswith("USER_PASSWORD=")][0]
-            password = password_line.split('=')[1]
-            print("请前往https://rdv2.lcpu.dev登录使用")
-            print(f"用户名: {user_id}")
-            print(f"密码: {password}")
-            # ensure shadowxvfb@98 shadowgnome@98 shadowdesk@98 services are running
-            os.system("sudo systemctl enable --now shadowxvfb@98 shadowgnome@98 shadowdesk@98")
-            return
-        student_id = input("请输入学号: ")
-        hostname = os.popen("hostname").read().strip().split('.')[0]
-        user_id = f"{student_id}_{hostname}"
-        
-        password = generate_password()
-        
-        print(f"\n生成的随机密码: {password}")
-        
-        if modify_shadowdesk_config(user_id, password):
-            print("\n配置已成功修改！")
-            print(f"用户名和密码已保存到 {os.path.expanduser('~')}/rd_password")
-            print("请前往https://rdv2.lcpu.dev登录使用")
-            print(f"用户名: {user_id}")
-            print(f"密码: {password}")
-        else:
-            print("\n配置修改失败，请检查权限或文件路径。")
+        setup_desktop_environment()
             
     elif sys.argv[1] in ['connect', 'c']:
         username = input("请输入学工号: ")
-        password = getpass.getpass("请输入密码: ")
+        password = getpass.getpass("请输入门户密码: ")
 
         url = "https://its4.pku.edu.cn/cas/ITSClient"
         payload = {

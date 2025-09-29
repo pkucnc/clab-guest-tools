@@ -4,11 +4,11 @@ After=shadowxvfb@%i.service
 
 [Service]
 Type=simple
-User=almalinux
-Group=almalinux
+User={{SHADOWDESK_USER}}
+Group={{SHADOWDESK_USER}}
 Environment="DISPLAY=:%I"
 Environment="XDG_SESSION_TYPE=x11"
-ExecStart=/etc/X11/xinit/Xsession "gnome-session"
+ExecStart={{XSESSION_PATH}} "{{DESKTOP_SESSION}}"
 
 [Install]
 WantedBy=default.target

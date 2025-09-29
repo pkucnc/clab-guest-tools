@@ -3,7 +3,7 @@ Version: {{VERSION}}
 Section: utils
 Priority: optional
 Architecture: all
-Depends: bash, curl, jq
+Depends: bash, curl, jq, python3-requests
 Maintainer: {{MAINTAINER}}
 Description: CLab CLI Guest Tools for PKU CLab cloud machines
 Homepage: {{HOMEPAGE}}

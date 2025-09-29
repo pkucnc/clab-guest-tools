@@ -4,10 +4,10 @@ After=network.target shadowgnome@%i.service
 
 [Service]
 Type=simple
-User=almalinux
-Group=almalinux
+User={{SHADOWDESK_USER}}
+Group={{SHADOWDESK_USER}}
 Environment="DISPLAY=:%i"
-EnvironmentFile=-%h/.config/shadowdesk/shadowdesk.env
+EnvironmentFile={{SHADOWDESK_USER_HOME}}/.config/shadowdesk/shadowdesk.env
 ExecStart=/opt/shadowdesk/bin/shadowdeskbin
 ExecStop=/usr/bin/pkill -u %i -f /opt/shadowdesk/bin/shadowdeskbin
 Restart=always

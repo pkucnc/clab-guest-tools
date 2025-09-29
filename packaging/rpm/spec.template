@@ -8,7 +8,7 @@ URL:            {{HOMEPAGE}}
 Source0:        %{name}-%{version}.tar.gz
 BuildArch:      noarch
 
-Requires:       bash, curl, jq
+Requires:       bash, curl, jq, python3-requests
 
 %description
 CLab CLI Guest Tools for PKU CLab cloud machines.
