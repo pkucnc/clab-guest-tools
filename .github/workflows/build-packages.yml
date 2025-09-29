@@ -38,9 +38,9 @@ jobs:
             package_type: rpm
             distro: el9
             arch: noarch
-          - os: rockylinux:10
+          - os: almalinux:10
             package_type: rpm
-            distro: el9
+            distro: el10
             arch: noarch
 
     runs-on: ubuntu-latest
