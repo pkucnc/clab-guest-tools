@@ -25,6 +25,10 @@ shadowdesk/shadowxvfb@.service:/usr/lib/systemd/system/shadowxvfb@.service:644:f
 notify/motd:/usr/share/clab/motd:644:file
 notify/init-notification.json:/usr/share/clab/init-notification.json:644:file
 
+# EDA bashrc
+assets/eda-bashrc:/usr/share/clab/bashrc/eda-bashrc:644:file
+
 # Directories (will be created automatically but listed for completeness)
 :/usr/share/clab:755:dir
 :/usr/share/clab/shadowdesk:755:dir
+:/usr/share/clab/bashrc:755:dir
