@@ -283,9 +283,9 @@ class OSAdapter:
                     for placeholder, value in templates.items():
                         content = content.replace(placeholder, value)
                     
-                    # 写回文件（需要sudo权限）
+                    # 写回文件（需要sudo权限）- 抑制tee的stdout输出
                     subprocess.run(['sudo', 'tee', service_file], 
-                                 input=content, text=True, check=True)
+                                 input=content, universal_newlines=True, check=True, stdout=subprocess.DEVNULL)
                     print(f"✓ 已更新服务文件: {service_file}")
                 except Exception as e:
                     print(f"✗ 更新服务文件失败 {service_file}: {e}")
@@ -300,7 +300,7 @@ class UbuntuAdapter(OSAdapter):
         """安装Ubuntu桌面环境包"""
         print("正在安装Ubuntu桌面环境包...")
         result = subprocess.run(['sudo', 'apt', 'install', '-y', 'dbus-x11', 'ubuntu-desktop', 'libopenh264-7'], 
-                               capture_output=True, text=True)
+                               stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
         if result.returncode != 0:
             print(f"安装包失败: {result.stderr}")
             raise RuntimeError("包安装失败")
@@ -318,7 +318,7 @@ class UbuntuAdapter(OSAdapter):
         """禁用Ubuntu的gdm显示管理器"""
         print("正在禁用gdm显示管理器...")
         result = subprocess.run(['sudo', 'systemctl', 'disable', '--now', 'gdm'], 
-                               capture_output=True, text=True)
+                               stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
         if result.returncode != 0:
             print(f"禁用gdm失败: {result.stderr}")
         else:
@@ -343,7 +343,7 @@ class ELAdapter(OSAdapter):
         """EL系统通常使用gdm或lightdm"""
         print("正在禁用显示管理器...")
         result = subprocess.run(['sudo', 'systemctl', 'disable', '--now', "gdm"], 
-                                   capture_output=True, text=True)
+                                   stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
         if result.returncode == 0:
             print(f"✓ GDM 显示管理器已禁用")
 
@@ -541,7 +541,7 @@ def setup_desktop_environment():
         else:
             # 6. 设置新的用户名和密码
             student_id = input("请输入学号: ")
-            hostname = subprocess.run(['hostname'], capture_output=True, text=True).stdout.strip().split('.')[0]
+            hostname = subprocess.run(['hostname'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True).stdout.strip().split('.')[0]
             user_id = f"{student_id}_{hostname}"
             password = generate_password()
             
@@ -630,7 +630,7 @@ def _install_shadowdesk_ubuntu():
     
     # 获取Ubuntu发行版代号
     result = subprocess.run(['grep', 'UBUNTU_CODENAME', '/etc/os-release'], 
-                           capture_output=True, text=True, check=True)
+                           stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True, check=True)
     codename = result.stdout.split('=')[1].strip()
     
     # 确保目录存在
@@ -644,7 +644,7 @@ def _install_shadowdesk_ubuntu():
     # 添加软件源
     repo_line = f"deb [signed-by=/etc/apt/keyrings/shadowdesk.asc] https://git.pku.edu.cn/api/packages/pkuhpc/debian {codename} main"
     subprocess.run(['sudo', 'tee', '/etc/apt/sources.list.d/shadowdesk.list'], 
-                   input=repo_line, text=True, check=True)
+                   input=repo_line, universal_newlines=True, check=True)
     
     # 更新软件包列表并安装
     print("正在更新软件包列表...")
